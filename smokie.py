@@ -44,7 +44,7 @@ if __name__ == '__main__':
         verb, uri, http_version = request['request'].split(' ')
         method = HTTP_VERBS[verb]
         body = request['body'].encode('utf8') or None
-        expected_status = int(request('status'))
+        expected_status = int(request['status'])
 
         resp = method(host + uri, proxies={'http': ''}, data=body)
         if resp.status_code != expected_status:
