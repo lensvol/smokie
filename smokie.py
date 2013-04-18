@@ -29,6 +29,31 @@ def load_json_store(fp):
         yield json.loads(line)
 
 
+def send_request(host, request):
+    verb, uri, http_version = request['request'].split(' ')
+    method = HTTP_VERBS[verb]
+    expected_status = int(request['status'])
+
+    add_kwargs = {
+        'proxies': {'http': ''},
+        'data': request['body'].encode('utf-8'),
+        'stream': False,
+        'headers': {}
+    }
+
+    if 'headers' in request:
+        for header, value in request.iteritems():
+            add_kwargs['headers'][header] = value
+
+    resp = method(host + uri, **add_kwargs)
+
+    print u'[%i] %s @ %s' % (num + 1, resp.status_code, uri),
+    if resp.status_code != expected_status:
+        print u'--> ERR (expected: %s)' % expected_status
+    else:
+        print u'--> OK'
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         print 'Usage: ./smokie <host> <request store>'
@@ -41,17 +66,6 @@ if __name__ == '__main__':
         fp = open(sys.argv[2], 'r')
 
     for num, request in enumerate(load_json_store(fp)):
-        verb, uri, http_version = request['request'].split(' ')
-        method = HTTP_VERBS[verb]
-        body = request['body'].encode('utf8') or None
-        expected_status = int(request['status'])
-
-        resp = method(host + uri, proxies={'http': ''}, data=body)
-
-        print u'[%i] %s @ %s' % (num + 1, resp.status_code, uri),
-        if resp.status_code != expected_status:
-            print u'--> ERR (expected: %s)' % expected_status
-        else:
-            print u'--> OK'
+        send_request(host, request)
 
     fp.close()
