@@ -5,12 +5,7 @@ import sys
 import json
 import requests
 
-HTTP_VERBS = {
-    'GET': requests.get,
-    'POST': requests.post,
-    'PUT': requests.put,
-    'OPTIONS': requests.options
-}
+from optparse import OptionParser
 
 
 # Ugly hack to get around NGINX encoding of request body
@@ -29,22 +24,27 @@ def load_json_store(fp):
         yield json.loads(line)
 
 
-def send_request(host, request):
+def send_request(host, request, proxies=None, no_proxy=False):
     verb, uri, http_version = request['request'].split(' ')
-    method = HTTP_VERBS[verb]
     expected_status = int(request['status'])
 
     add_kwargs = {
-        'proxies': {'http': ''},
         'data': request['body'].encode('utf-8'),
         'stream': False,
         'headers': {}
     }
 
     if 'headers' in request:
-        for header, value in request.iteritems():
+        for header, value in request['headers'].iteritems():
             add_kwargs['headers'][header] = value
 
+    sess = requests.Session()
+
+    if no_proxy:
+        add_kwargs['proxies'] = dict(http='', https='')
+        sess.trust_env = False
+
+    method = getattr(sess, verb.lower())
     resp = method(host + uri, **add_kwargs)
 
     print u'[%i] %s @ %s' % (num + 1, resp.status_code, uri),
@@ -55,17 +55,29 @@ def send_request(host, request):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
+    opt_parser = OptionParser()
+
+    opt_parser.add_option('', '--proxy', dest='proxy', help='Proxy server (e.g. "http://user@passlocalhost:81/")')
+    opt_parser.add_option('', '--no-proxy', dest='no_proxy',
+                          action='store_true', default=False,
+                          help='Don\'t use proxies')
+
+    (options, args) = opt_parser.parse_args()
+
+    if len(args) < 2:
         print 'Usage: ./smokie <host> <request store>'
 
-    host = sys.argv[1]
+    host = args[0]
 
-    if sys.argv[2] == '-':
+    if args[1] == '-':
         fp = sys.stdin
     else:
-        fp = open(sys.argv[2], 'r')
+        fp = open(args[1], 'r')
 
     for num, request in enumerate(load_json_store(fp)):
-        send_request(host, request)
+        send_request(host, request,
+                     no_proxy=options.no_proxy, proxies={
+                         'http': options.proxy
+                     })
 
     fp.close()
