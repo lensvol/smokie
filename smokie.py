@@ -13,6 +13,7 @@ from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 
 HOST = None
 
+
 def load_json_store(fp):
     def asciirepl(match):
         return '\\u00' + match.group()[2:]
@@ -34,7 +35,7 @@ def send_request(host, request, proxies=None, no_proxy=False):
     verb, uri, http_version = request['request'].split(' ')
     add_kwargs = {
         'data': request['body'].encode('utf-8'),
-        'stream': False,
+        'stream': True,
         'headers': {}
     }
 
@@ -49,7 +50,7 @@ def send_request(host, request, proxies=None, no_proxy=False):
 
     method = getattr(sess, verb.lower())
     resp = method(host + uri, **add_kwargs)
-    return resp.status_code, resp.content
+    return resp
 
 
 class RequestRecorder(BaseHTTPRequestHandler):
@@ -81,8 +82,18 @@ class RequestRecorder(BaseHTTPRequestHandler):
             name, value = header_line.split(':', 1)
             request['headers'][name] = value.strip()
 
-        status, content = send_request(HOST, request)
-        request['status'] = status
+        resp = send_request(HOST, request, no_proxy=True)
+        request['status'] = resp.status_code
+
+        # We need to return received data to client, as if nothing happened.
+        self.send_response(resp.status_code)
+        for header, value in resp.headers.items():
+            self.send_header(header, value)
+        self.end_headers()
+
+        # python-requests decompresses content received from server,
+        # so to make sense we must send it raw body of the response
+        self.wfile.write(resp.raw.read(resp.headers['content-length']))
 
         print json.dumps(request)
 
@@ -101,7 +112,6 @@ class RequestRecorder(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     opt_parser = OptionParser()
-
     opt_parser.add_option('', '--proxy', dest='proxy', help='Proxy server (e.g. "http://user@passlocalhost:81/")')
     opt_parser.add_option('', '--no-proxy', dest='no_proxy',
                           action='store_true', default=False,
@@ -110,7 +120,6 @@ if __name__ == '__main__':
                           action='store_true', help='Start proxy (outputs to stdin)')
     opt_parser.add_option('', '--record-at', dest='recorder_iface', default='localhost:8881',
                           metavar='HOST', help='Specify recorder listening point (default: host=localhost, port=8881)')
-
     (options, args) = opt_parser.parse_args()
 
     HOST = args[0]
@@ -135,13 +144,12 @@ if __name__ == '__main__':
         for num, request in enumerate(load_json_store(fp)):
             expected_status = request['status']
 
-            resp_status, content = send_request(HOST, request,
-                                                no_proxy=options.no_proxy, proxies={
-                                                    'http': options.proxy
-                                                })
+            resp = send_request(HOST, request,
+                                no_proxy=options.no_proxy,
+                                proxies={'http': options.proxy})
 
-            print u'[%i] %s @ %s' % (num + 1, resp_status, expected_status),
-            if resp_status != expected_status:
+            print u'[%i] %s @ %s' % (num + 1, resp.status_code, expected_status),
+            if resp.status_code != expected_status:
                 print u'--> ERR (expected: %s)' % expected_status
             else:
                 print u'--> OK'
