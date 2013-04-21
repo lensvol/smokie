@@ -3,6 +3,7 @@
 import re
 import sys
 import json
+import time
 import requests
 
 from optparse import OptionParser
@@ -61,7 +62,8 @@ if __name__ == '__main__':
     opt_parser.add_option('', '--no-proxy', dest='no_proxy',
                           action='store_true', default=False,
                           help='Don\'t use proxies')
-
+    opt_parser.add_option('', '--delay', dest='delay', default=0.0,
+                          help='Delay between between attempts to send requests')
     (options, args) = opt_parser.parse_args()
 
     if len(args) < 2:
@@ -79,5 +81,6 @@ if __name__ == '__main__':
                      no_proxy=options.no_proxy, proxies={
                          'http': options.proxy
                      })
+        time.sleep(float(options.delay))
 
     fp.close()
