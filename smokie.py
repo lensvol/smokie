@@ -26,7 +26,6 @@ def load_json_store(fp):
 
 def send_request(host, request, proxies=None, no_proxy=False):
     verb, uri, http_version = request['request'].split(' ')
-    expected_status = int(request['status'])
 
     add_kwargs = {
         'data': request['body'].encode('utf-8'),
@@ -47,12 +46,7 @@ def send_request(host, request, proxies=None, no_proxy=False):
     method = getattr(sess, verb.lower())
     resp = method(host + uri, **add_kwargs)
 
-    print u'[%i] %s @ %s' % (num + 1, resp.status_code, uri),
-    if resp.status_code != expected_status:
-        print u'--> ERR (expected: %s)' % expected_status
-    else:
-        print u'--> OK'
-
+    return resp.status_code, resp.content
 
 if __name__ == '__main__':
     opt_parser = OptionParser()
@@ -75,9 +69,18 @@ if __name__ == '__main__':
         fp = open(args[1], 'r')
 
     for num, request in enumerate(load_json_store(fp)):
-        send_request(host, request,
-                     no_proxy=options.no_proxy, proxies={
-                         'http': options.proxy
-                     })
+        expected_status = request['status']
+
+        resp_status, content = send_request(host, request,
+                                            no_proxy=options.no_proxy, proxies={
+                                                'http': options.proxy
+                                            })
+
+        print u'[%i] %s @ %s' % (num + 1, resp_status, expected_status),
+
+        if resp_status != expected_status:
+            print u'--> ERR (expected: %s)' % expected_status
+        else:
+            print u'--> OK'
 
     fp.close()
