@@ -79,7 +79,6 @@ class RequestRecorder(BaseHTTPRequestHandler):
 
         for header_line in self.headers.headers:
             name, value = header_line.split(':', 1)
-            name = name[:-1]
             request['headers'][name] = value.strip()
 
         status, content = send_request(HOST, request)
