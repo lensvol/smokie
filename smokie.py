@@ -95,7 +95,8 @@ class RequestRecorder(BaseHTTPRequestHandler):
         # so to make sense we must send it raw body of the response
         self.wfile.write(resp.raw.read(resp.headers['content-length']))
 
-        print json.dumps(request)
+        sys.stdout.write(json.dumps(request))
+        sys.stdout.flush()
 
     def do_POST(self):
         self.record_request('POST')
