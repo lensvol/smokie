@@ -1,56 +1,17 @@
 #coding: utf-8
 
-import re
 import sys
 import json
 import time
 import datetime
-import requests
 
 from pytz import reference
 from optparse import OptionParser
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 
+from request import send_request, load_json_store
+
 HOST = None
-
-
-def load_json_store(fp):
-    def asciirepl(match):
-        return '\\u00' + match.group()[2:]
-
-    p = re.compile(r'\\x(\w{2})')
-
-    while True:
-        line = fp.readline()
-        if not line:
-            break
-
-        # Ugly hack to get around NGINX encoding of request body
-        # (http://stackoverflow.com/questions/8011692/valueerror-in-decoding-json)
-        line = p.sub(asciirepl, line.strip())
-        yield json.loads(line)
-
-
-def send_request(host, request, proxies=None, no_proxy=False):
-    verb, uri, http_version = request['request'].split(' ')
-    add_kwargs = {
-        'data': request['body'].encode('utf-8'),
-        'stream': True,
-        'headers': {}
-    }
-
-    if 'headers' in request:
-        for header, value in request['headers'].iteritems():
-            add_kwargs['headers'][header] = value
-
-    sess = requests.Session()
-    if no_proxy:
-        add_kwargs['proxies'] = dict(http='', https='')
-        sess.trust_env = False
-
-    method = getattr(sess, verb.lower())
-    resp = method(host + uri, **add_kwargs)
-    return resp
 
 
 class RequestRecorder(BaseHTTPRequestHandler):
@@ -118,12 +79,16 @@ if __name__ == '__main__':
                           action='store_true', default=False,
                           help='Don\'t use proxies')
     opt_parser.add_option('', '--delay', dest='delay', default=0.0,
-                          help='Delay between between attempts to send requests')
+                          help='Delay between between attempts to send requests (in seconds, floats allowed)')
     opt_parser.add_option('', '--recorder', dest='use_recorder', default=False,
                           action='store_true', help='Start proxy (outputs to stdin)')
     opt_parser.add_option('', '--record-at', dest='recorder_iface', default='localhost:8881',
                           metavar='HOST', help='Specify recorder listening point (default: host=localhost, port=8881)')
     (options, args) = opt_parser.parse_args()
+
+    if len(args) == 0:
+        opt_parser.print_help()
+        exit(-1)
 
     HOST = args[0]
 
