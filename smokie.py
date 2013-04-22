@@ -9,7 +9,7 @@ from pytz import reference
 from optparse import OptionParser
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 
-from request import send_request, load_json_store
+from request import send_request, load_json_store, request_loop
 
 HOST = None
 
@@ -43,18 +43,18 @@ class RequestRecorder(BaseHTTPRequestHandler):
             name, value = header_line.split(':', 1)
             request['headers'][name] = value.strip()
 
-        resp = send_request(HOST, request, no_proxy=True)
-        request['status'] = resp.status_code
+        status_code, headers, content = send_request(HOST, request, no_proxy=True)
+        request['status'] = status_code
 
         # We need to return received data to client, as if nothing happened.
-        self.send_response(resp.status_code)
-        for header, value in resp.headers.items():
+        self.send_response(status_code)
+        for header, value in headers.items():
             self.send_header(header, value)
         self.end_headers()
 
         # python-requests decompresses content received from server,
         # so to make sense we must send it raw body of the response
-        self.wfile.write(resp.raw.read(resp.headers['content-length']))
+        self.wfile.write(content)
 
         sys.stdout.write(json.dumps(request))
         sys.stdout.flush()
@@ -109,18 +109,14 @@ if __name__ == '__main__':
         else:
             fp = open(args[1], 'r')
 
-        for num, request in enumerate(load_json_store(fp)):
-            expected_status = request['status']
+        kw = {
+            'no_proxy': options.no_proxy,
+            'proxies': {
+                'http': options.proxy,
+                'https': options.proxy
+            }
+        }
 
-            resp = send_request(HOST, request,
-                                no_proxy=options.no_proxy,
-                                proxies={'http': options.proxy})
-            time.sleep(float(options.delay))
-
-            print u'[%i] %s @ %s' % (num + 1, resp.status_code, expected_status),
-            if resp.status_code != int(expected_status):
-                print u'--> ERR (expected: %s)' % expected_status
-            else:
-                print u'--> OK'
+        request_loop(lambda x: send_request(HOST, x, **kw), load_json_store(fp), AssertionError)
 
         fp.close()
