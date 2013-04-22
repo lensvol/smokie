@@ -3,7 +3,26 @@ smokie
 
 An utility to replay "canned" series of Web requests for fun and testing :)
 
-Requests should be recorded in JSON by nginx using this pattern::
+Usage
+=====
+$ python ./smokie.py --help
+Usage: smokie.py [options]
+
+Options:
+  -h, --help        show this help message and exit
+  --proxy=PROXY     Proxy server (e.g. "http://user@passlocalhost:81/")
+  --no-proxy        Don't use proxies
+  --delay=DELAY     Delay between between attempts to send requests (in seconds)
+  --recorder        Start proxy (outputs to stdin)
+  --record-at=HOST  Specify recorder listening point (default: host=localhost,
+                    port=8881)
+
+Recording requests
+==================
+
+1) `nginx access_log <http://nginx.org/en/docs/http/ngx_http_log_module.html>`_:
+
+::
 
     log_format request_data '{"timestamp": "$time_iso8601", '
                            '"time_local": "$time_local", '
@@ -19,3 +38,25 @@ Requests should be recorded in JSON by nginx using this pattern::
                            '}';
 
     access_log /var/log/nginx_requests.log request_data;
+
+2) Using internal request recorder:
+
+::
+
+$ ./smokie.py --recorder --record-at=localhost:7777
+
+It will listen for requests at specified port and interface (localhost:8888 by default)
+and forward them to specified host, while proxying it answers back to you. Formatted
+JSON dict with requests will be printed to stdin.
+
+Playing back
+============
+::
+
+$ ./smokie.py http://google.com google_requests.log
+
+or, if you want to read requests from stdin
+
+::
+
+$ ./smokie.py http://google.com -
