@@ -39,15 +39,15 @@ Recording requests
 
     access_log /var/log/nginx_requests.log request_data;
 
-2) Using internal request recorder:
+2) Using internal request recorder as a proxy:
 
 ::
 
-$ ./smokie.py --recorder --record-at=localhost:7777
+$ ./recorder.py --record-at=localhost:7777
 
 It will listen for requests at specified port and interface (localhost:8888 by default)
 and forward them to specified host, while proxying it answers back to you. Formatted
-JSON dict with requests will be printed to stdin.
+JSON dictionary with parsed data will be printed to stdout.
 
 Playing back
 ============
